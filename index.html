@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Slender P2P - Global Notes & Rotation</title>
+    <title>Slender P2P - Global Sync</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; background: #000; color: white; font-family: 'Courier New', monospace; overflow: hidden; }
@@ -11,14 +11,12 @@
         .menu-btn { padding: 12px 24px; margin: 10px; cursor: pointer; background: #600; color: white; border: none; font-weight: bold; }
         #lobby-list { text-align: left; margin: 20px 0; border: 1px solid #333; padding: 10px; }
         input { padding: 10px; background: #111; border: 1px solid #444; color: white; width: 80%; }
-        #hud { position: absolute; top: 20px; left: 20px; font-size: 20px; z-index: 5; }
-        #game-log { position: absolute; bottom: 20px; left: 20px; color: #aaa; font-size: 14px; pointer-events: none; }
+        #hud { position: absolute; top: 20px; left: 20px; font-size: 20px; display: none; z-index: 5; }
     </style>
 </head>
 <body>
 
-    <div id="hud" style="display:none;">NOTAS: <span id="pageCount">0</span> / 8</div>
-    <div id="game-log"></div>
+    <div id="hud">NOTAS COLECTADAS: <span id="pageCount">0</span> / 8</div>
 
     <div id="ui">
         <h1 id="title">SLENDER P2P</h1>
@@ -34,10 +32,9 @@
         </div>
         <div id="lobby" style="display:none;">
             <h3>SALA DE ESPERA</h3>
-            <p>ID: <b id="display-id" style="color:red">...</b></p>
+            <p style="font-size: 12px;">ID: <b id="display-id" style="color:red">...</b></p>
             <div id="lobby-list"></div>
             <button id="start-btn" class="menu-btn" style="display:none;" onclick="broadcastStart()">INICIAR PARTIDA</button>
-            <p id="wait-msg" style="display:none;">Esperando al host...</p>
         </div>
     </div>
 
@@ -62,12 +59,8 @@
         let collectedPages = 0;
         let gameRunning = false;
         let isHost = false;
-        let peer, conn;
 
-        function logMsg(m) {
-            const log = document.getElementById('game-log');
-            log.innerHTML = m + "<br>" + log.innerHTML;
-        }
+        let peer, conn;
 
         function initMultiplayer(asHost) {
             isHost = asHost;
@@ -93,45 +86,50 @@
 
         function setupConnection() {
             conn.on('data', (data) => {
-                if (data.type === 'START') startGame();
-                if (data.type === 'SYNC') {
-                    remotePlayer.x = data.x;
-                    remotePlayer.y = data.y;
-                    remotePlayer.dead = data.dead;
-                    remotePlayer.active = true;
-                }
-                if (data.type === 'PAGE_COLLECTED') {
+                if (data.type === 'START') startGame(data.seed);
+                if (data.type === 'PAGE_PICKED') {
                     pages[data.index].collected = true;
                     collectedPages = data.total;
                     document.getElementById('pageCount').innerText = collectedPages;
-                    logMsg("¡El otro jugador recogió una página!");
+                }
+                if (data.type === 'DIE') remotePlayer.dead = true;
+                if (data.type === 'SYNC') {
+                    remotePlayer.x = data.x;
+                    remotePlayer.y = data.y;
+                    remotePlayer.active = true;
                 }
             });
         }
 
         function broadcastStart() {
-            if (conn) conn.send({ type: 'START' });
-            startGame();
+            const seed = Math.random();
+            if (conn) conn.send({ type: 'START', seed: seed });
+            startGame(seed);
         }
 
-        function startSolo() { startGame(); }
+        function startSolo() { startGame(Math.random()); }
 
-        function showJoinInput() {
-            document.getElementById('main-menu').style.display = 'none';
-            document.getElementById('join-section').style.display = 'block';
-        }
-
-        function startGame() {
+        function startGame(seed) {
             document.getElementById('ui').style.display = 'none';
             document.getElementById('hud').style.display = 'block';
-            if (isHost || !conn) spawnPages(); // El host o solo generan paginas
+            spawnPages(seed);
             gameRunning = true;
             gameLoop();
         }
 
-        function spawnPages() {
+        function spawnPages(seed) {
+            let seededRandom = (s) => {
+                let t = s += 0x6D2B79F5;
+                t = Math.imul(t ^ t >>> 15, t | 1);
+                t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            }
             for(let i=0; i<8; i++) {
-                pages.push({ x: Math.random()*(canvas.width-50), y: Math.random()*(canvas.height-50), collected: false });
+                pages.push({ 
+                    x: seededRandom(seed + i) * (canvas.width - 50), 
+                    y: seededRandom(seed + i * 2) * (canvas.height - 50), 
+                    collected: false 
+                });
             }
         }
 
@@ -147,42 +145,38 @@
             if (keys['a'] || keys['arrowleft']) player.x -= player.speed;
             if (keys['d'] || keys['arrowright']) player.x += player.speed;
 
-            // IA Slender
-            let target = (remotePlayer.active && !remotePlayer.dead) ? 
-                         (Math.hypot(slender.x - player.x, slender.y - player.y) < Math.hypot(slender.x - remotePlayer.x, slender.y - remotePlayer.y) ? player : remotePlayer) 
-                         : player;
-            
+            let target = player;
+            if (remotePlayer.active && !remotePlayer.dead) {
+                let d1 = Math.hypot(slender.x - player.x, slender.y - player.y);
+                let d2 = Math.hypot(slender.x - remotePlayer.x, slender.y - remotePlayer.y);
+                if (d2 < d1) target = remotePlayer;
+            }
             let angle = Math.atan2(target.y - slender.y, target.x - slender.x);
-            slender.x += Math.cos(angle) * (slender.speed + (collectedPages * 0.2));
-            slender.y += Math.sin(angle) * (slender.speed + (collectedPages * 0.2));
+            slender.x += Math.cos(angle) * (slender.speed + (collectedPages * 0.25));
+            slender.y += Math.sin(angle) * (slender.speed + (collectedPages * 0.25));
 
-            // Recolección Global
             pages.forEach((p, index) => {
                 if(!p.collected && Math.hypot(player.x + 25 - p.x, player.y + 25 - p.y) < 40) {
                     p.collected = true;
                     collectedPages++;
                     document.getElementById('pageCount').innerText = collectedPages;
-                    logMsg("¡Recogí una página!");
-                    if (conn) conn.send({ type: 'PAGE_COLLECTED', index: index, total: collectedPages });
+                    if (conn && conn.open) conn.send({ type: 'PAGE_PICKED', index: index, total: collectedPages });
                 }
             });
 
-            // Muerte y Rotación
             if (Math.hypot(player.x - slender.x, player.y - slender.y) < 40) {
                 player.dead = true;
-                logMsg("Slender te atrapó...");
+                if (conn && conn.open) conn.send({ type: 'DIE' });
                 setTimeout(() => location.reload(), 3000);
             }
 
-            if (conn && conn.open) {
-                conn.send({ type: 'SYNC', x: player.x, y: player.y, dead: player.dead });
-            }
+            if (conn && conn.open) conn.send({ type: 'SYNC', x: player.x, y: player.y });
         }
 
         function drawPlayer(pX, pY, tintColor, isDead) {
             ctx.save();
             ctx.translate(pX + player.size/2, pY + player.size/2);
-            if (isDead) ctx.rotate(-90 * Math.PI / 180); // Girar 90 grados sentido contrario
+            if (isDead) ctx.rotate(-Math.PI / 2); // Rotar 90 grados sentido antihorario
             
             ctx.drawImage(GameContentSlender.PersonSpriteheh, -player.size/2, -player.size/2, player.size, player.size);
             ctx.fillStyle = tintColor;
@@ -196,13 +190,11 @@
 
             pages.forEach(p => { if(!p.collected) { ctx.fillStyle = "white"; ctx.fillRect(p.x, p.y, 10, 15); }});
 
-            // Slender
             ctx.fillStyle = "black";
             ctx.fillRect(slender.x, slender.y, slender.w, slender.h);
             ctx.fillStyle = "white";
             ctx.fillRect(slender.x + 5, slender.y - 15, slender.w - 10, 15);
 
-            // Dibujar Jugadores
             drawPlayer(player.x, player.y, isHost ? player.color : remotePlayer.color, player.dead);
             if (remotePlayer.active) {
                 drawPlayer(remotePlayer.x, remotePlayer.y, isHost ? remotePlayer.color : player.color, remotePlayer.dead);
