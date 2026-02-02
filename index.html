@@ -50,10 +50,6 @@
     const ctx = canvas.getContext('2d');
     const chatMessages = document.getElementById('chat-messages');
     const chatInput = document.getElementById('chat-input');
-
-    // --- CARGA DE ASSETS ---
-    const playerSprite = new Image();
-    playerSprite.src = 'GameContentSlender/PersonSpriteheh.png'; // Ruta solicitada
     
     let worldMap = [
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
@@ -79,19 +75,29 @@
     
     function getPlayerName(id) {
         if (!id) return "???";
-        return id.substring(0, 4); // Siempre retorna los 4 dígitos iniciales
+        let short = id.substring(0, 4);
+        let count = 0;
+        let index = 1;
+        const allIds = Object.keys(players).sort();
+        for (let pId of allIds) {
+            if (pId.substring(0, 4) === short) {
+                if (pId === id) index = count + 1;
+                count++;
+            }
+        }
+        return count > 1 ? `${short}(${index})` : short;
     }
 
     peer.on('open', id => {
         myId = id;
         document.getElementById('my-id').innerText = id;
-        players[id] = { id: id, x: 1.5, y: 1.5, color: '#3498db', isDead: false };
+        players[id] = { x: 1.5, y: 1.5, color: '#3498db', isDead: false };
     });
 
     peer.on('connection', conn => {
         conn.on('open', () => {
             connections[conn.peer] = conn;
-            players[conn.peer] = { id: conn.peer, x: 1.5, y: 1.5, color: '#e67e22', isDead: false };
+            players[conn.peer] = { x: 1.5, y: 1.5, color: '#e67e22', isDead: false };
             addChatMessage("Sistema", `${getPlayerName(conn.peer)} se unió.`);
             updateLobbyUI();
             syncToAll();
@@ -224,7 +230,8 @@
     function handleMovement() {
         if(!gameStarted || isDead) return;
         
-        if (keys['ArrowRight'] || keys['KeyD']) {
+        // GIRO IZQUIERDA: Flecha Izquierda o tecla A
+        if (keys['ArrowLeft'] || keys['KeyA']) {
             let oldDirX = dirX;
             dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
             dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
@@ -233,7 +240,8 @@
             planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
         }
         
-        if (keys['ArrowLeft'] || keys['KeyA']) {
+        // GIRO DERECHA: Flecha Derecha o tecla D
+        if (keys['ArrowRight'] || keys['KeyD']) {
             let oldDirX = dirX;
             dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
             dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
@@ -242,6 +250,7 @@
             planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
         }
 
+        // AVANZAR/RETROCEDER: Flechas Arriba/Abajo o teclas W/S
         let moveX = (keys['ArrowUp'] || keys['KeyW'] ? 1 : (keys['ArrowDown'] || keys['KeyS'] ? -1 : 0));
         let targetX = posX + dirX * moveSpeed * moveX;
         let targetY = posY + dirY * moveSpeed * moveX;
@@ -316,12 +325,8 @@
         }
 
         let sprites = [];
-        if(slenderman.active) sprites.push({...slenderman, isSlender: true, sX:0.5, sY:1.8});
-        for(let id in players) {
-            if(id !== myId && !players[id].isDead) {
-                sprites.push({...players[id], id: id, isSlender: false, sX:0.6, sY:1.0});
-            }
-        }
+        if(slenderman.active) sprites.push({...slenderman, color:"#111", sX:0.5, sY:1.8});
+        for(let id in players) if(id !== myId && !players[id].isDead) sprites.push({...players[id], sX:0.4, sY:0.6});
         
         sprites.sort((a,b) => Math.hypot(posX-b.x, posY-b.y) - Math.hypot(posX-a.x, posY-a.y));
         sprites.forEach(s => {
@@ -331,21 +336,9 @@
             if(ty > 0.1) {
                 let sx = Math.floor((w/2) * (1 + tx / ty));
                 let sh = Math.abs(Math.floor(h / ty)) * s.sY, sw = Math.abs(Math.floor(h / ty)) * s.sX;
-                
                 if(sx > 0 && sx < w && ty < zBuffer[sx]) {
-                    if (s.isSlender) {
-                        ctx.fillStyle = "#111";
-                        ctx.fillRect(sx - sw/2, h/2 - sh/2, sw, sh);
-                    } else {
-                        // Dibujar Sprite del Jugador
-                        ctx.drawImage(playerSprite, sx - sw/2, h/2 - sh/2, sw, sh);
-                        
-                        // Dibujar Nombre (4 dígitos) arriba
-                        ctx.fillStyle = "white";
-                        ctx.font = "bold 14px Arial";
-                        ctx.textAlign = "center";
-                        ctx.fillText(getPlayerName(s.id), sx, h/2 - sh/2 - 10);
-                    }
+                    ctx.fillStyle = s.color || "#e67e22";
+                    ctx.fillRect(sx - sw/2, h/2 - sh/2, sw, sh);
                 }
             }
         });
