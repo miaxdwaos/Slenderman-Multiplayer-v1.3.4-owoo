@@ -2,23 +2,19 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Slender 3D - Mountains & Map</title>
+    <title>Slender 3D - Green Mountains</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; background: #000; color: white; font-family: 'Courier New', monospace; overflow: hidden; }
         canvas { display: block; margin: auto; }
-        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; background: rgba(0,0,0,0.9); padding: 30px; border: 2px solid #440000; min-width: 320px; z-index: 100; }
-        .menu-btn { padding: 12px 24px; margin: 10px; cursor: pointer; background: #600; color: white; border: none; font-weight: bold; text-transform: uppercase; }
+        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; background: rgba(0,0,0,0.9); padding: 30px; border: 2px solid #004400; min-width: 320px; z-index: 100; }
+        .menu-btn { padding: 12px 24px; margin: 10px; cursor: pointer; background: #060; color: white; border: none; font-weight: bold; text-transform: uppercase; }
         #hud { position: absolute; top: 20px; left: 20px; font-size: 22px; display: none; text-shadow: 2px 2px #000; z-index: 10; }
         #msg-overlay { position: absolute; top: 40%; width: 100%; text-align: center; font-size: 40px; display: none; font-weight: bold; z-index: 200; pointer-events: none; }
-        
-        /* Minimapa */
-        #minimap { position: absolute; top: 20px; right: 20px; width: 160px; height: 160px; background: rgba(0,0,0,0.7); border: 2px solid #444; display: none; z-index: 30; }
-
-        /* Estilos del Chat */
-        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 200px; background: rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 50; border: 1px solid #333; }
+        #minimap { position: absolute; top: 20px; right: 20px; width: 160px; height: 160px; background: rgba(0,0,0,0.7); border: 2px solid #060; display: none; z-index: 30; }
+        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 200px; background: rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 50; border: 1px solid #030; }
         #chat-box { flex-grow: 1; overflow-y: auto; padding: 5px; font-size: 14px; display: flex; flex-direction: column; }
-        #chat-input { background: rgba(20,20,20,0.8); border: none; border-top: 1px solid #333; color: white; padding: 8px; outline: none; }
+        #chat-input { background: rgba(10,30,10,0.8); border: none; border-top: 1px solid #030; color: white; padding: 8px; outline: none; }
         .chat-msg { margin-bottom: 4px; }
         .chat-system { color: #aaa; font-style: italic; }
     </style>
@@ -35,7 +31,7 @@
     </div>
 
     <div id="ui">
-        <h1>SLENDER 3D</h1>
+        <h1>SLENDER 3D FOREST</h1>
         <div id="main-menu">
             <button class="menu-btn" onclick="startSolo()">Solitario</button><br>
             <button class="menu-btn" onclick="initMultiplayer(true)">Crear Sala</button><br>
@@ -46,8 +42,8 @@
             <button class="menu-btn" onclick="initMultiplayer(false)">Conectar</button>
         </div>
         <div id="lobby" style="display:none;">
-            <h3 id="lobby-status">CONECTANDO...</h3>
-            <p>ID: <b id="display-id" style="color:red">...</b></p>
+            <h3 id="lobby-status">BUSCANDO SEÑAL...</h3>
+            <p>ID: <b id="display-id" style="color:#0f0">...</b></p>
             <div id="lobby-list" style="margin:10px; text-align:left;"></div>
             <button id="start-btn" class="menu-btn" style="display:none;" onclick="broadcastStart()">Iniciar Partida</button>
         </div>
@@ -67,26 +63,32 @@
         const GameContentSlender = { PersonSpriteheh: new Image() };
         GameContentSlender.PersonSpriteheh.src = "PersonSpriteheh.jpg";
 
-        // Configuración de Colores Secuenciales
         const COLORS = ["#ff0000", "#0088ff", "#00ff00", "#ffaa00", "#ff00ff"];
-
         const TILE_SIZE = 64;
         const FOV = Math.PI / 3;
-        const MAP_SIZE = 30; // Mapa más grande
+        const MAP_SIZE = 40; // Aún más grande
+        const MT_HEIGHT = 80; // Montañas más altas
         
-        // 0: Suelo, 1: Muro, 2: Montaña
-        const worldMap = Array.from({length: MAP_SIZE}, (_, i) => 
-            Array.from({length: MAP_SIZE}, (_, j) => {
-                if (i===0 || i===MAP_SIZE-1 || j===0 || j===MAP_SIZE-1) return 1;
-                // Generar "montañas" aleatorias
-                if (i > 5 && i < 25 && j > 5 && j < 25 && Math.random() > 0.92) return 2;
-                return 0;
-            })
-        );
+        // Generación de mapa con montañas grandes (clusters)
+        const worldMap = Array.from({length: MAP_SIZE}, () => Array(MAP_SIZE).fill(0));
+        for(let i=0; i<MAP_SIZE; i++) {
+            for(let j=0; j<MAP_SIZE; j++) {
+                if (i===0 || i===MAP_SIZE-1 || j===0 || j===MAP_SIZE-1) worldMap[i][j] = 1;
+                // Generar "manchas" de montaña más grandes
+                else if (Math.random() > 0.97) {
+                    for(let x=-2; x<=2; x++) {
+                        for(let y=-2; y<=2; y++) {
+                            if(i+x > 0 && i+x < MAP_SIZE-1 && j+y > 0 && j+y < MAP_SIZE-1)
+                                worldMap[i+x][j+y] = 2;
+                        }
+                    }
+                }
+            }
+        }
 
-        let player = { name: "Victim 1", x: 150, y: 150, z: 0, dir: 0, speed: 3, rotSpeed: 0.05, dead: false, color: COLORS[0] };
+        let player = { name: "Victim 1", x: 150, y: 150, z: 0, dir: 0, speed: 3.5, rotSpeed: 0.05, dead: false, color: COLORS[0] };
         let remotePlayer = { name: "Victim 2", x: -200, y: -200, z: 0, dir: 0, active: false, dead: false, color: COLORS[1] };
-        let slender = { x: 500, y: 500, speed: 1.2 };
+        let slender = { x: 800, y: 800, speed: 1.3 };
         let pages = [];
         let collectedPages = 0;
         let gameRunning = false;
@@ -123,12 +125,10 @@
             player.color = isHost ? COLORS[0] : COLORS[1];
             remotePlayer.name = isHost ? "Victim 2" : "Victim 1";
             remotePlayer.color = isHost ? COLORS[1] : COLORS[0];
-
             peer = new Peer();
             document.getElementById('main-menu').style.display = 'none';
             document.getElementById('join-section').style.display = 'none';
             document.getElementById('lobby').style.display = 'block';
-
             peer.on('open', id => {
                 document.getElementById('display-id').innerText = id;
                 document.getElementById('lobby-list').innerHTML = `• ${player.name} (Tú)`;
@@ -167,7 +167,11 @@
 
         function broadcastStart() {
             for(let i=0; i<8; i++) {
-                pages.push({ x: Math.random()*(MAP_SIZE*TILE_SIZE-200)+100, y: Math.random()*(MAP_SIZE*TILE_SIZE-200)+100, collected: false });
+                let px = Math.random()*(MAP_SIZE*TILE_SIZE-200)+100;
+                let py = Math.random()*(MAP_SIZE*TILE_SIZE-200)+100;
+                // Si la hoja está en montaña, hereda esa altura, si no, 0
+                let isOnMountain = worldMap[Math.floor(py/TILE_SIZE)][Math.floor(px/TILE_SIZE)] === 2;
+                pages.push({ x: px, y: py, z: isOnMountain ? MT_HEIGHT : 0, collected: false });
             }
             if(conn) {
                 conn.send({ type: 'PAGES_DATA', pages: pages });
@@ -189,41 +193,31 @@
 
         function update() {
             if(!gameRunning) return;
-
             if(!player.dead) {
                 if(keys['a'] || keys['arrowleft']) player.dir -= player.rotSpeed;
                 if(keys['d'] || keys['arrowright']) player.dir += player.rotSpeed;
-                
                 let moveX = Math.cos(player.dir) * player.speed;
                 let moveY = Math.sin(player.dir) * player.speed;
                 let nextX = player.x, nextY = player.y;
-
                 if(keys['w'] || keys['arrowup']) { nextX += moveX; nextY += moveY; }
                 if(keys['s'] || keys['arrowdown']) { nextX -= moveX; nextY -= moveY; }
-
                 let gridX = Math.floor(nextX/TILE_SIZE);
                 let gridY = Math.floor(nextY/TILE_SIZE);
-
                 if(worldMap[gridY][gridX] !== 1) {
-                    player.x = nextX;
-                    player.y = nextY;
-                    // Lógica de Montaña (Altura estilo Doom)
-                    player.z = (worldMap[gridY][gridX] === 2) ? 30 : 0;
+                    player.x = nextX; player.y = nextY;
+                    player.z = (worldMap[gridY][gridX] === 2) ? MT_HEIGHT : 0;
                 }
-
-                if(Math.hypot(player.x - slender.x, player.y - slender.y) < 30) {
+                if(Math.hypot(player.x - slender.x, player.y - slender.y) < 35) {
                     player.dead = true;
-                    addChatMessage("", "¡HAS MUERTO!", true);
+                    addChatMessage("", "¡TE ATRAPÓ!", true);
                 }
             }
-
             if(isHost) {
                 let target = (remotePlayer.active && !remotePlayer.dead) ? remotePlayer : player;
                 let ang = Math.atan2(target.y - slender.y, target.x - slender.x);
-                slender.x += Math.cos(ang) * (slender.speed + (collectedPages * 0.1));
-                slender.y += Math.sin(ang) * (slender.speed + (collectedPages * 0.1));
+                slender.x += Math.cos(ang) * (slender.speed + (collectedPages * 0.15));
+                slender.y += Math.sin(ang) * (slender.speed + (collectedPages * 0.15));
             }
-
             pages.forEach((p, idx) => {
                 if(!p.collected && Math.hypot(player.x - p.x, player.y - p.y) < 40) {
                     p.collected = true;
@@ -231,7 +225,6 @@
                     checkPages();
                 }
             });
-
             if(conn && conn.open) {
                 conn.send({ type: 'SYNC', x: player.x, y: player.y, z: player.z, dead: player.dead, sx: isHost?slender.x:undefined, sy: isHost?slender.y:undefined });
             }
@@ -240,31 +233,27 @@
         function drawMinimap() {
             mCtx.fillStyle = "black"; mCtx.fillRect(0,0,160,160);
             const scale = 160 / (MAP_SIZE * TILE_SIZE);
-            
             for(let y=0; y<MAP_SIZE; y++) {
                 for(let x=0; x<MAP_SIZE; x++) {
-                    if(worldMap[y][x] === 1) { mCtx.fillStyle = "#400"; mCtx.fillRect(x*TILE_SIZE*scale, y*TILE_SIZE*scale, TILE_SIZE*scale, TILE_SIZE*scale); }
-                    if(worldMap[y][x] === 2) { mCtx.fillStyle = "#440"; mCtx.fillRect(x*TILE_SIZE*scale, y*TILE_SIZE*scale, TILE_SIZE*scale, TILE_SIZE*scale); }
+                    if(worldMap[y][x] === 1) { mCtx.fillStyle = "#030"; mCtx.fillRect(x*TILE_SIZE*scale, y*TILE_SIZE*scale, TILE_SIZE*scale, TILE_SIZE*scale); }
+                    if(worldMap[y][x] === 2) { mCtx.fillStyle = "#0f0"; mCtx.fillRect(x*TILE_SIZE*scale, y*TILE_SIZE*scale, TILE_SIZE*scale, TILE_SIZE*scale); }
                 }
             }
-            // Jugadores
             mCtx.fillStyle = player.color; mCtx.fillRect(player.x*scale-2, player.y*scale-2, 4, 4);
             if(remotePlayer.active) { mCtx.fillStyle = remotePlayer.color; mCtx.fillRect(remotePlayer.x*scale-2, remotePlayer.y*scale-2, 4, 4); }
-            // Slender
-            mCtx.fillStyle = "white"; mCtx.fillRect(slender.x*scale-2, slender.y*scale-2, 4, 4);
+            mCtx.fillStyle = "white"; mCtx.fillRect(slender.x*scale-1, slender.y*scale-1, 3, 3);
         }
 
         function draw() {
-            // Fondo
-            ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, canvas.width, canvas.height/2 + player.z);
-            ctx.fillStyle = "#111"; ctx.fillRect(0, canvas.height/2 + player.z, canvas.width, canvas.height/2 - player.z);
+            // Fondo (Cielo oscuro y Suelo verde oscuro)
+            ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height/2 + player.z);
+            ctx.fillStyle = "#020"; ctx.fillRect(0, canvas.height/2 + player.z, canvas.width, canvas.height/2 - player.z);
 
-            // Raycasting
             for(let i=0; i<canvas.width; i+=4) {
                 let rayAngle = (player.dir - FOV/2) + (i/canvas.width) * FOV;
                 let dist = 0; let hit = 0;
-                while(hit === 0 && dist < 1000) {
-                    dist += 4;
+                while(hit === 0 && dist < 1200) {
+                    dist += 5;
                     let tx = Math.floor((player.x + Math.cos(rayAngle) * dist) / TILE_SIZE);
                     let ty = Math.floor((player.y + Math.sin(rayAngle) * dist) / TILE_SIZE);
                     if(tx<0||ty<0||tx>=MAP_SIZE||ty>=MAP_SIZE) break;
@@ -272,13 +261,13 @@
                 }
                 dist *= Math.cos(player.dir - rayAngle);
                 let h = (TILE_SIZE * canvas.height) / dist;
-                ctx.fillStyle = hit === 2 ? `rgb(60, 50, 20)` : `rgb(${Math.max(0, 150 - dist/5)}, 0, 0)`;
+                // Color verde para montañas y muros
+                ctx.fillStyle = hit === 2 ? `rgb(0, ${Math.max(20, 100 - dist/8)}, 0)` : `rgb(0, ${Math.max(0, 50 - dist/10)}, 0)`;
                 ctx.fillRect(i, (canvas.height - h)/2 + player.z, 4, h);
             }
 
-            // Sprites
             const sprites = [];
-            pages.forEach(p => { if(!p.collected) sprites.push({x: p.x, y: p.y, z: 0, type: 'page'}); });
+            pages.forEach(p => { if(!p.collected) sprites.push({x: p.x, y: p.y, z: p.z, type: 'page'}); });
             if(remotePlayer.active) sprites.push({x: remotePlayer.x, y: remotePlayer.y, z: remotePlayer.z, type: 'victim'});
             sprites.push({x: slender.x, y: slender.y, z: 0, type: 'slender'});
 
@@ -293,25 +282,25 @@
                 if(Math.abs(angle) < FOV) {
                     let sx = (0.5 * (angle / (FOV/2)) + 0.5) * canvas.width;
                     let h = (TILE_SIZE * canvas.height) / (dist * Math.cos(angle));
-                    let spriteZ = (s.z - player.z) * (canvas.height/dist); // Diferencia de altura
+                    let spriteZ = (s.z - player.z) * (canvas.height/dist); 
                     let sy = (canvas.height - h)/2 + spriteZ + player.z;
 
                     if(s.type === 'slender') {
                         ctx.fillStyle = "black"; ctx.fillRect(sx - h/4, sy, h/2, h);
                         ctx.fillStyle = "white"; ctx.fillRect(sx - h/6, sy - h/6, h/3, h/6);
                     } else if(s.type === 'page') {
-                        ctx.fillStyle = "white"; ctx.fillRect(sx - h/10, sy + h/2, h/5, h/4);
+                        ctx.fillStyle = "white"; ctx.fillRect(sx - h/10, sy + h/1.5, h/5, h/4);
                     } else if(s.type === 'victim') {
                         ctx.save();
                         if(remotePlayer.dead) ctx.globalAlpha = 0.2;
                         ctx.drawImage(GameContentSlender.PersonSpriteheh, sx - h/2, sy, h, h);
-                        ctx.fillStyle = remotePlayer.color + "66"; ctx.fillRect(sx - h/2, sy, h, h);
+                        ctx.fillStyle = remotePlayer.color + "55"; ctx.fillRect(sx - h/2, sy, h, h);
                         ctx.restore();
                     }
                 }
             });
             
-            if(player.dead) { ctx.fillStyle = "rgba(100,0,0,0.5)"; ctx.fillRect(0,0,canvas.width,canvas.height); }
+            if(player.dead) { ctx.fillStyle = "rgba(100,0,0,0.6)"; ctx.fillRect(0,0,canvas.width,canvas.height); }
             drawMinimap();
         }
 
@@ -322,7 +311,7 @@
         function checkPages() {
             collectedPages = pages.filter(p => p.collected).length;
             document.getElementById('pageCount').innerText = collectedPages;
-            if(collectedPages >= 8) showEndMsg("HAS ESCAPADO", "#0f0");
+            if(collectedPages >= 8) showEndMsg("HAS SOBREVIVIDO", "#0f0");
         }
 
         function showEndMsg(txt, color) {
